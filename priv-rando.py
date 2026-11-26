@@ -19,8 +19,8 @@ systems = {0:("17_AR",2), 1:("41-GS",1), 2:("44-P-IM",2), 3:("Aldebran",2), 4:("
             47:("Ragnarok",2), 48:("Raxis",1), 49:("Regallis",3), 50:("Rikel",3), 51:("Rygannon",2),
             52:("Saxtogue",2), 53:("Shangri La",1), 54:("Sherwood",5), 55:("Surtur",3), 56:("Telar",3),
             57:("Tingerhoff",4), 58:("Troy",4), 59:("Delta",2), 60:("Gamma",2), 61:("Beta",2),
-            62:("Delta Prime",2), 64:("Varnus",1), 65:("War",2), 66:("Xytani",2), 67:("XXN_1927",5),
-            68:("Test Bed",0)}
+            62:("Delta Prime",1), 63:("Valhalla",1), 64:("Varnus",1), 65:("War",2), 66:("Xytani",2),
+            67:("XXN_1927",5), 68:("Test Bed",0)}
 
 
 ships = ['GLXYTYPEMERCHANT', 'GLADTYPEGLADIUS\x00', 'ORIOTYPETUG\x00\x00\x00\x00\x00', 'DRAYTYPEDRAYMAN\x00',
@@ -41,6 +41,20 @@ shipscr = {'PIRATYPETALPIR\x00\x00': ['PIR_SF', 'PIR_DA', 'PIR_SA', 'PIR_AA', 'P
            'CENTTYPEFIGHTER\x00': ['BOU_AA', 'BOU_SA'], 'TALNWIMPTALMIL\x00\x00': ['MIL_DA', 'MIL_AA'], 
            'TALNWIMPTALPIR\x00\x00': ['PIR_DA', 'PIR_AA', 'PIR_SF', 'PIR_AF'], 
            'TALNWIMPTALRELIG': ['COM_SF', 'COM_DF', 'COM_AF']}
+
+# these are all the bases that are in systems with a ship dealer
+bases = [0, 1, 2, 3, 5, 6, 9, 10, 13, 14, 15, 16, 17, 18, 19, 21, 24, 26, 29, 30, 31, 32, 33, 35, 38, 
+         39, 40, 41, 43, 44, 46, 48, 50, 51, 52, 53, 56, 57, 58]
+
+basenames = ["Achilles", "Anapolis", "Basque", "Basra", "Beaconsfield", "Bodensee", "Burton", "Charon", 
+            "Drake", "Edinburgh", "Edom", "Elysia", "Erewhon", "Glasgow", "Gracchus", "Hector", "Heimdel", 
+            "Helen", "Jolson", "Joplin", "Kronecker", "Lisacc", "Liverpool", "Macabee", "Magdaline", "Matahari",
+            "Meadow", "Megiddo", "Mjolnar", "Munchen", "N1912-1", "New Constantinople", "New Detroit",
+            "New Iberia", "New Reno", "Nitir", "Oakham", "Olympus", "Oresville", "Oxford", "Palan",
+            "Perry Naval Base", "Remus", "Rilke", "Rodin", "Romulus", "Rygannon", "Saratov", "Siva", "Smallville",
+            "Speke", "Surtur", "Thisbury", "Trinsic", "Tuck's", "Valkyrie", "Victoria", "Vishnu", "Wickerton",
+            "Derelickt Base"]
+
 
 def makeseed():
     random.seed()
@@ -115,6 +129,7 @@ def randomizejumps(gseed):
 
             # sometimes a sector is left with more than one jump unoccupied (chance)
             if len(sectors) == 1:
+                #print("seed ", seed, "can't get jumps")
                 break
 
         ####
@@ -157,6 +172,8 @@ else:
 
 randomjumps = "NO"
 randomspawns = "NO"
+randomstart = "NO"
+rb = 0
 print("Randomize Jumps? (default NO, type Y or YES)")
 inp = input("> ").strip().upper()
 if inp == "Y" or inp == "YES":
@@ -167,9 +184,25 @@ inp = input("> ").strip().upper()
 if inp == "Y" or inp == "YES":
     randomspawns = "YES"
 
+if os.path.exists("INITCFG.PAK"):
+    if not os.path.exists("INITCFG.ori"):
+        shutil.copy("INITCFG.PAK", "INITCFG.ori")
+        print("INITCFG.PAK backup made")
+    else:
+        shutil.copy("INITCFG.ori", "INITCFG.PAK")
+
+    print("Randomize Start Base? (default NO, type Y or YES)")
+    inp = input("> ").strip().upper()
+    if inp == "Y" or inp == "YES":
+        randomstart = "YES"    
+
+
 rando = list()
 if randomjumps == "YES":
     rando, rseed = randomizejumps(rseed)
+
+if randomstart == "YES":
+    rb = random.randint(0, len(bases)-1)
 
 #print(rando)
 #input()
@@ -182,7 +215,9 @@ with open("spoiler.txt", "w") as spfile:
     spfile.write(line)
     line = "Randomize Jumps? " + randomjumps + "\n"
     spfile.write(line)
-    line = "Randomize Spawns? " + randomspawns + "\n\n"
+    line = "Randomize Spawns? " + randomspawns + "\n"
+    spfile.write(line)
+    line = "Randomize Start Base? " + randomstart + ", " + basenames[rb] + "\n\n"
     spfile.write(line)
     line = "Jump List ====================\n\n"
     spfile.write(line)
@@ -194,24 +229,28 @@ with open("spoiler.txt", "w") as spfile:
             line += systems[r][0] + ", "
         spfile.write(line[:-2]+"\n")
 
-search = "SCTRLABL".encode("utf-8")
+search = "SCTR".encode("utf-8")
 
 #out = ""
 
 with open("PRIV.TRE", "rb+") as file:
     with mmap.mmap(file.fileno(), length=0, access=mmap.ACCESS_READ) as mm:
         pos = mm.find(search)
+        sectorend = mm.find("UNIVINFO".encode("utf-8"))
 
-        while pos != -1:
+        while pos > -1 and pos < sectorend:
             next = mm.find(search, pos+1)
-
-            file.seek(pos+8, 0)
+            
+            # Valhalla is special, so we have to do it this way 
+            seclab = mm.find("LABL".encode("utf-8"), pos)
+            file.seek(seclab+4, 0)
             tlen = int.from_bytes(file.read(4))
             label = str(file.read(tlen-1), 'utf-8')
             
             sysid = rev[label]
+            #print("system", label)
 
-            if randomspawns == "Y" or randomspawns == "YES":
+            if randomspawns == "YES":
                 scr = mm.find("SCRPCAST".encode("utf-8"), pos)+12
                 w = mm.find("WAND".encode("utf-8"), pos)
                 w += 8
@@ -226,7 +265,7 @@ with open("PRIV.TRE", "rb+") as file:
                     file.write(shipscr[ships[rs]][rs_s].encode("utf-8"))
                     w += 46
 
-            if randomjumps == "Y" or randomjumps == "YES":
+            if randomjumps == "YES":
                 j = 0
                 jf = mm.find("JUMPTYPEJUMP".encode("utf-8"), pos)
                 while jf > 0 and jf < next:
@@ -240,7 +279,14 @@ with open("PRIV.TRE", "rb+") as file:
             #print("System found:", label, "id", sysid, "no. of jumps", j)
 
             pos = next
+
+if randomstart == "YES":
+    with open("INITCFG.PAK", "rb+") as file:
+        file.seek(42, 0)
+        file.write(int.to_bytes(rb))
             
 print(rseed)
 print("Randomize Jumps?", randomjumps)
 print("Randomize Spawns?", randomspawns)
+print("Randomize Start Base?", randomstart)
+
